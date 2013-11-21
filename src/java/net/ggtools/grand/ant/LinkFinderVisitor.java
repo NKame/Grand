@@ -31,6 +31,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -513,73 +514,116 @@ public class LinkFinderVisitor extends ReflectTaskVisitorBase {
         if (targetBuildFile == null) {
             targetBuildFile = projectFile;
         }
-
-        final boolean isSameBuildFile = projectFile.equals(targetBuildFile);
-
-        String endNodeName;
-
-        String targetName = antProject.replaceProperties(target);
-
-        AntTargetNode endNode;
-        if (isSameBuildFile) {
-            endNodeName = (targetName == null) ? antProject.getDefaultTarget() : targetName;
-            endNode = (AntTargetNode) graph.getNode(endNodeName);
-        } else {
-            if (targetName == null) {
-                try {
-                    // TODO caching.
-                    LOG.debug("Reading project file " + targetBuildFile);
-                    final AntProject tmpProj = new AntProject(targetBuildFile);
-                    targetName = tmpProj.getAntProject().getDefaultTarget();
-                } catch (final GrandException e) {
-                    LOG.info("Caught exception trying to read " + targetBuildFile
-                            + " using default target name", e);
-                    targetName = "'default'";
-                }
-
-            }
-
-            // Find out the "right" node avoiding conflicts.
-            // FIXME the current algorithm seems really bad, check if a cache is
-            // worth implementing.
-            int index = 1;
-            boolean conflict = false;
-            endNodeName = "[" + targetName + "]";
-            do {
-                conflict = false;
+        
+        AntTargetNode endNode = null;        
+        try {
+            final File canonProjectFile = projectFile.getCanonicalFile();        
+            final File canonTargetBuildFile = targetBuildFile.getCanonicalFile();
+            
+            final boolean isSameBuildFile = canonProjectFile.equals(canonTargetBuildFile);
+    
+            String endNodeName;
+    
+            String targetName = antProject.replaceProperties(target);
+    
+            if (isSameBuildFile) {
+                endNodeName = (targetName == null) ? antProject.getDefaultTarget() : targetName;
                 endNode = (AntTargetNode) graph.getNode(endNodeName);
-                try {
+            } else {
+                if (targetName == null) {
+                    try {
+                        // TODO caching.
+                        LOG.debug("Reading project file " + targetBuildFile);
+                        final AntProject tmpProj = new AntProject(targetBuildFile);
+                        targetName = tmpProj.getAntProject().getDefaultTarget();
+                    } catch (final GrandException e) {
+                        LOG.info("Caught exception trying to read " + targetBuildFile
+                                + " using default target name", e);
+                        targetName = "'default'";
+                    }
+    
+                }
+    
+                // Find out the "right" node avoiding conflicts.
+                // FIXME the current algorithm seems really bad, check if a cache is
+                // worth implementing.
+                int index = 1;
+                boolean conflict = false;
+                endNodeName = "[" + targetName + "]";
+                do {
+                    conflict = false;
+                    endNode = (AntTargetNode) graph.getNode(endNodeName);
                     if ((endNode != null)
-                            && !targetBuildFile.getCanonicalPath().equals(endNode.getBuildFile())) {
-                        LOG.error("Conflict on build file " + targetBuildFile.getCanonicalPath()
+                            && !canonTargetBuildFile.getPath().equals(endNode.getBuildFile())) {
+                        LOG.error("Conflict on build file " + canonTargetBuildFile.getPath()
                                 + " vs " + endNode.getBuildFile());
                         conflict = true;
                         index++;
                         endNodeName = "[" + targetName + " (" + index + ")]";
                     }
-                } catch (IOException e) {
-                    // won't happen
-                    LOG.error(e);
-                }
-            } while (conflict);
-        }
-
-        // Creates an new node if none found.
-        if (endNode == null) {
-            LOG.info("Target " + startNode + " has dependency to non existent target "
-                    + endNodeName + ", creating a dummy node");
-            endNode = (AntTargetNode) graph.createNode(endNodeName);
-            endNode.setAttributes(Node.ATTR_MISSING_NODE);
-        }
-
-        if (!isSameBuildFile) {
-            try {
-                endNode.setBuildFile(targetBuildFile.getCanonicalPath());
-            } catch (IOException e) {
-                // won't happen
-                LOG.error(e);
+                } while (conflict);
             }
+    
+            // Creates an new node if none found.
+            if (endNode == null) {
+                LOG.info("Target " + startNode + " has dependency to non existent target "
+                        + endNodeName + ", creating a dummy node");
+                endNode = (AntTargetNode) graph.createNode(endNodeName);
+                endNode.setAttributes(Node.ATTR_MISSING_NODE);
+            }
+    
+            if (!isSameBuildFile) {
+                endNode.setBuildFile(canonTargetBuildFile.getPath());
+                endNode.setDescription(relative(targetBuildFile, projectFile));
+            }
+        } catch (IOException e) {
+            // won't happen, except if the file doesn't exist?
+            LOG.error(e);
         }
         return endNode;
+    }
+
+    private String relative(File target, File base) {
+        final List<String> compsTarget = comps(target, false);
+        final List<String> compsBase = comps(base, true);
+        StringBuilder result = new StringBuilder();
+        String sep = System.getProperty("file.separator");
+        
+        final int max = Math.min(compsTarget.size(), compsBase.size());
+        int i = 0;
+        for(; i < max; ++i) {
+            if(!compsTarget.get(i).equals(compsBase.get(i))) {
+                break;
+            }
+        }
+        for(int j = i; j < compsBase.size(); ++j) {
+            result.append("..").append(sep);
+        }
+        for(String comp : compsTarget.subList(i, compsTarget.size())) {
+            result.append(comp).append(sep);
+        }
+        result.setLength(result.toString().length() - sep.length());
+        
+        return result.toString();
+    }
+
+    private List<String> comps(File target, boolean mustBeDir) {
+        List<String> result = new ArrayList<String>();
+        if(mustBeDir && target.isFile()) {
+            target = target.getParentFile();
+        }
+        
+        try {
+            target = target.getCanonicalFile();
+            while(target != null) {
+                result.add(target.getName());
+                target = target.getParentFile();
+            }
+        } catch (IOException e) {
+            // won't happen
+            LOG.error(e);
+        }
+        Collections.reverse(result);
+        return result;
     }
 }

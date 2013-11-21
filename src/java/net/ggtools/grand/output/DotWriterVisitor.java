@@ -341,7 +341,7 @@ class DotWriterVisitor implements NodeVisitor {
                 if (attributes != null) {
                     output.append(",");
                 }
-                output.append("comment=\"").appendEscaped(description).append("\"");
+                output.append("label=\"").appendEscaped(node.getName()).append("\\n").appendEscaped(description).append("\"");
             }
 
             output.append("];");

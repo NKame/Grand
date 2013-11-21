@@ -90,7 +90,7 @@ public class DotWriter implements GraphWriter {
             if (str == null) {
                 return null;
             }
-            return str.replaceAll("(\\\"\\s)", "\\\\\\1");
+            return str.replace("\\", "\\\\").replace("\"", "\\\"").replace(" ", "\\ ");
         }
 
         /**
