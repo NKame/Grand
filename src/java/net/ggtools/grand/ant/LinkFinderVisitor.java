@@ -28,6 +28,7 @@
 package net.ggtools.grand.ant;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Enumeration;
@@ -230,6 +231,9 @@ public class LinkFinderVisitor extends ReflectTaskVisitorBase {
                 }
                 targetBuildFile = new File(parentDirectory, antFile);
             }
+        }
+        if(!(targetBuildFile.exists() && targetBuildFile.isFile())) {
+            LOG.error("Ant file " + targetBuildFile + " is missing");
         }
 
         final List<Object> targetElements = getTargetElementNames(wrapper);
@@ -544,13 +548,18 @@ public class LinkFinderVisitor extends ReflectTaskVisitorBase {
             do {
                 conflict = false;
                 endNode = (AntTargetNode) graph.getNode(endNodeName);
-                if ((endNode != null)
-                        && !targetBuildFile.getAbsolutePath().equals(endNode.getBuildFile())) {
-                    LOG.error("Conflict on build file " + targetBuildFile + " vs "
-                            + endNode.getBuildFile());
-                    conflict = true;
-                    index++;
-                    endNodeName = "[" + targetName + " (" + index + ")]";
+                try {
+                    if ((endNode != null)
+                            && !targetBuildFile.getCanonicalPath().equals(endNode.getBuildFile())) {
+                        LOG.error("Conflict on build file " + targetBuildFile.getCanonicalPath()
+                                + " vs " + endNode.getBuildFile());
+                        conflict = true;
+                        index++;
+                        endNodeName = "[" + targetName + " (" + index + ")]";
+                    }
+                } catch (IOException e) {
+                    // won't happen
+                    LOG.error(e);
                 }
             } while (conflict);
         }
@@ -564,7 +573,12 @@ public class LinkFinderVisitor extends ReflectTaskVisitorBase {
         }
 
         if (!isSameBuildFile) {
-            endNode.setBuildFile(targetBuildFile.getAbsolutePath());
+            try {
+                endNode.setBuildFile(targetBuildFile.getCanonicalPath());
+            } catch (IOException e) {
+                // won't happen
+                LOG.error(e);
+            }
         }
         return endNode;
     }

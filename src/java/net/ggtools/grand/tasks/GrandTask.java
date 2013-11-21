@@ -246,6 +246,9 @@ public class GrandTask extends Task {
 
         getProject().copyUserProperties(antProject);
 
+        // copyUserProperties erases ant.file 
+        antProject.setUserProperty("ant.file", buildFile.getAbsolutePath());
+        
         return antProject;
     }
 
