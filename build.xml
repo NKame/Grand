@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-
-<project default="jar" name="grand" basedir=".">
+<project default="jar" name="grand" basedir="." xmlns:ivy="antlib:org.apache.ivy.ant">
   <property name="defaulttargetdir" value="target">
   </property>
   <property name="libdir" value="target/lib">
@@ -53,6 +52,11 @@
     <jar jarfile="target/${final.name}.jar" excludes="**/package.html" basedir="${classesdir}">
     </jar>
   </target>
+  <target name="jar-notest" description="o Create the jar" depends="compile">
+	<jar jarfile="target/${final.name}.jar" excludes="**/package.html" basedir="${classesdir}">
+	</jar>
+  </target>
+		
   <target name="clean" description="o Clean up the generated directories">
     <delete dir="${defaulttargetdir}">
     </delete>
@@ -144,12 +148,7 @@
     </javadoc>
   </target>
   <target name="get-deps" unless="noget" depends="init">
-    <get dest="${libdir}/ant-1.9.2.jar" usetimestamp="true" ignoreerrors="true" src="http://repo1.maven.org/maven2/org/apache/ant/ant/1.9.2/ant-1.9.2.jar">
-    </get>
-    <get dest="${libdir}/ant-launcher-1.9.2.jar" usetimestamp="true" ignoreerrors="true" src="http://repo1.maven.org/maven2/org/apache/ant/ant-launcher/1.9.2/ant-launcher-1.9.2.jar">
-    </get>
-    <get dest="${libdir}/junit-3.8.2.jar" usetimestamp="true" ignoreerrors="true" src="http://repo1.maven.org/maven2/junit/junit/3.8.2/junit-3.8.2.jar">
-    </get>
+  	<ivy:retrieve pattern="${libdir}/[artifact]-[revision].[ext]" sync="true" type="jar" />
   </target>
   <target name="install-maven">
     <get dest="${user.home}/maven-install-latest.jar" usetimestamp="true" src="${repo}/maven/maven-install-latest.jar">
